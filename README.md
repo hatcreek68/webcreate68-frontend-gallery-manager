@@ -2,7 +2,7 @@
 
 A Wordpress plugin for frontend photo gallery management. Includes drag-and-drop uploads, lightbox viewing, password protection, and automatic ZIP generation for whole album downloading. 
 
-See usage below.  The intention is the upload shortcode to be used on editor access controlled page, while the client gallery shortcode is used for a public page.
+See usage below.  The intention is for the upload shortcode to be used on editor access controlled page, while the client gallery shortcode is used for a public page.
 
 ## Features
 
@@ -67,7 +67,7 @@ webcreate68-frontend-gallery-manager/
 ### For Editors (Upload & Manage)
 
 **Add this shortcode to any page**
-**Intended for an editor-restricted page, for editor to effortlessly create and manage galleries.**
+**Intended for an editor-restricted page, allowing an editor account to effortlessly create and manage galleries.**
 ```
 [manage_galleries_upload]
 ```
