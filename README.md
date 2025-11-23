@@ -1,6 +1,7 @@
 # webcreate68 Frontend Gallery Manager
 
-A frontend WordPress gallery management system with drag-and-drop uploads, lightbox viewing, password protection, and automatic ZIP generation for whole album downloading. 
+A Wordpress plugin for frontend photo gallery management. Includes drag-and-drop uploads, lightbox viewing, password protection, and automatic ZIP generation for whole album downloading. 
+
 See usage below.  The intention is the upload shortcode to be used on editor access controlled page, while the client gallery shortcode is used for a public page.
 
 ## Features
