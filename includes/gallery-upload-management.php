@@ -17,7 +17,7 @@ add_action('wp_enqueue_scripts', function() {
 
     wp_enqueue_script(
         'webcreate68-gallery-manager',
-        WC68_GALLERY_URL . 'assets/gallery-manager.js',
+        WC68_GALLERY_URL . 'assets/webcreate68-gallery-manager.js',
         ['dropzone-js','jquery'],
         WC68_GALLERY_VERSION,
         true
