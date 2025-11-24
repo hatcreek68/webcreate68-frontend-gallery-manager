@@ -222,7 +222,7 @@ function webcreate68_get_list() {
         $list[] = [
             'folder' => $name,
             'display_name' => $meta['display_name'] ?? $name,
-            'password_hash' => $meta['password_hash'] ?? ''
+            'has_password' => !empty($meta['password_hash'])
         ];
     }
     
