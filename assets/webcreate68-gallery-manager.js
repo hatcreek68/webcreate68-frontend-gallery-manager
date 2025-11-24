@@ -84,7 +84,13 @@ jQuery(document).ready(function($){
 
     function loadGalleries(){
         $.post(webcreate68_ajax.ajax_url, { action:'webcreate68_get_list', nonce:webcreate68_ajax.nonce }, function(res){
+            console.log('Gallery list response:', res);
             if(res.success){
+                console.log('Found ' + res.data.length + ' galleries');
+                if(res.data.length === 0) {
+                    $('#gallery-list').html('<p>No galleries found. Upload your first gallery above!</p>');
+                    return;
+                }
                 let html = '<div class="gallery-header"><div>Name</div><div>Password</div><div>Actions</div></div>';
                 res.data.forEach(g=>{
                     // XSS FIX: escape HTML in display_name and folder
@@ -98,7 +104,13 @@ jQuery(document).ready(function($){
                     </div>`;
                 });
                 $('#gallery-list').html(html);
-            } else $('#gallery-list').html('<p>Error loading galleries.</p>');
+            } else {
+                console.error('Error loading galleries:', res);
+                $('#gallery-list').html('<p>Error loading galleries: ' + (res.data || 'Unknown error') + '</p>');
+            }
+        }).fail(function(xhr, status, error){
+            console.error('AJAX failed:', status, error);
+            $('#gallery-list').html('<p>AJAX Error: ' + error + '</p>');
         });
     }
 

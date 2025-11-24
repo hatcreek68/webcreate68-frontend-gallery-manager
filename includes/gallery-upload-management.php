@@ -7,14 +7,14 @@
 if (!defined('ABSPATH')) exit;
 
 /* -------------------------------
-   Enqueue JS + Dropzone
+   Shortcode: Gallery Manager UI
 ---------------------------------*/
-add_action('wp_enqueue_scripts', function() {
-    if (!current_user_can('edit_pages')) return;
-
+add_shortcode('manage_galleries_upload', function() {
+    if (!current_user_can('edit_pages')) return '<p>Access denied.</p>';
+    
+    // Enqueue scripts for this shortcode
     wp_enqueue_style('dropzone-css', WC68_GALLERY_URL . 'assets/dropzone.min.css', [], WC68_GALLERY_VERSION);
-    wp_enqueue_script('dropzone-js', WC68_GALLERY_URL . 'assets/dropzone.min.js', [], WC68_GALLERY_VERSION, true);
-
+    wp_enqueue_script('dropzone-js', WC68_GALLERY_URL . 'assets/dropzone.min.js', ['jquery'], WC68_GALLERY_VERSION, true);
     wp_enqueue_script(
         'webcreate68-gallery-manager',
         WC68_GALLERY_URL . 'assets/webcreate68-gallery-manager.js',
@@ -22,18 +22,10 @@ add_action('wp_enqueue_scripts', function() {
         WC68_GALLERY_VERSION,
         true
     );
-
     wp_localize_script('webcreate68-gallery-manager', 'webcreate68_ajax', [
         'ajax_url' => admin_url('admin-ajax.php'),
         'nonce'    => wp_create_nonce('webcreate68_nonce')
     ]);
-});
-
-/* -------------------------------
-   Shortcode: Gallery Manager UI
----------------------------------*/
-add_shortcode('manage_galleries_upload', function() {
-    if (!current_user_can('edit_pages')) return '<p>Access denied.</p>';
 
     ob_start(); ?>
 
@@ -210,9 +202,18 @@ function webcreate68_get_list() {
     if (!current_user_can('edit_pages')) wp_send_json_error('Access denied.');
 
     $gallery_dir = wc68_galleries_base_path();
+    
+    // Debug: log the path being checked
+    error_log('Gallery dir path: ' . $gallery_dir);
+    
     wp_mkdir_p($gallery_dir);
 
     $dirs = array_filter(glob($gallery_dir . '*'), 'is_dir');
+    
+    // Debug: log what was found
+    error_log('Found ' . count($dirs) . ' directories');
+    error_log('Dirs: ' . print_r($dirs, true));
+    
     $list = [];
     foreach ($dirs as $dir) {
         $name = basename($dir);
@@ -224,6 +225,10 @@ function webcreate68_get_list() {
             'password_hash' => $meta['password_hash'] ?? ''
         ];
     }
+    
+    // Debug: log the result
+    error_log('Returning list with ' . count($list) . ' items');
+    
     wp_send_json_success($list);
 }
 
@@ -257,12 +262,31 @@ function webcreate68_delete_gallery() {
     $folder = sanitize_file_name($_POST['folder'] ?? '');
     if (!$folder) wp_send_json_error('Folder missing.');
 
+    // Get list of files before deleting to clean up cache
     $dir = wc68_galleries_base_path() . $folder;
+    $files_to_cache_clean = [];
+    if (is_dir($dir)) {
+        $files_to_cache_clean = glob($dir . '/*.{jpg,jpeg,png,webp,gif}', GLOB_BRACE);
+    }
+
+    // Delete gallery folder
     if (is_dir($dir)) {
         $it = new RecursiveDirectoryIterator($dir, RecursiveDirectoryIterator::SKIP_DOTS);
         $files = new RecursiveIteratorIterator($it, RecursiveIteratorIterator::CHILD_FIRST);
         foreach ($files as $file) $file->isDir() ? rmdir($file->getRealPath()) : unlink($file->getRealPath());
         rmdir($dir);
+    }
+
+    // Delete cached thumbnails for this gallery
+    $cache_dir = wc68_galleries_cache_path();
+    if (is_dir($cache_dir)) {
+        foreach ($files_to_cache_clean as $original_file) {
+            $cache_filename = md5($folder . '/' . basename($original_file)) . '_thumb_200.jpg';
+            $cache_path = $cache_dir . $cache_filename;
+            if (file_exists($cache_path)) {
+                @unlink($cache_path);
+            }
+        }
     }
 
     wp_send_json_success();
