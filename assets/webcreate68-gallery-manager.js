@@ -5,6 +5,9 @@ jQuery(document).ready(function($){
     let galleryName = '';
     let galleryDisplayName = '';
     let galleryPassword = '';
+    let uploadedFiles = new Set(); // Track successfully uploaded files
+    let totalFiles = 0;
+    let failedFiles = [];
 
     const dz = new Dropzone("#upload-section", {
         url: webcreate68_ajax.ajax_url,
@@ -16,6 +19,8 @@ jQuery(document).ready(function($){
         clickable: ".dz-message",
         headers: { 'X-WP-Nonce': webcreate68_ajax.nonce },
         previewsContainer: false,
+        retryChunks: true,
+        retryChunksLimit: 5,
         init: function() {
             const myDropzone = this;
             const progressContainer = document.getElementById("dz-total-progress-container");
@@ -37,11 +42,18 @@ jQuery(document).ready(function($){
             });
 
             this.on("addedfile", function(file) {
+                totalFiles++;
                 if(!galleryName){
                     galleryDisplayName = prompt('Enter gallery display name:');
-                    if(!galleryDisplayName){ myDropzone.removeFile(file); return; }
+                    if(!galleryDisplayName){ 
+                        myDropzone.removeFile(file); 
+                        totalFiles--;
+                        return; 
+                    }
                     galleryName = galleryDisplayName.replace(/[^a-zA-Z0-9\s-]/g, '').replace(/\s+/g, '-');
                     galleryPassword = prompt('Enter gallery password (optional):','') || '';
+                    uploadedFiles.clear();
+                    failedFiles = [];
                 }
             });
 
@@ -58,6 +70,42 @@ jQuery(document).ready(function($){
                 progressContainer.style.display = "none";
                 progressBar.style.width = "0%";
 
+                // Check if all files uploaded successfully
+                console.log('Upload complete. Total files:', totalFiles, 'Uploaded:', uploadedFiles.size, 'Failed:', failedFiles.length);
+                
+                if (failedFiles.length > 0) {
+                    const retry = confirm(`${failedFiles.length} files failed to upload. Retry failed files?`);
+                    if (retry) {
+                        console.log('Retrying failed files:', failedFiles);
+                        failedFiles.forEach(file => {
+                            myDropzone.enqueueFile(file);
+                        });
+                        failedFiles = [];
+                        return;
+                    }
+                }
+
+                if (uploadedFiles.size === 0) {
+                    alert('No files were uploaded successfully. Please try again.');
+                    galleryName = '';
+                    galleryDisplayName = '';
+                    galleryPassword = '';
+                    totalFiles = 0;
+                    return;
+                }
+
+                // Verify count matches before proceeding
+                if (uploadedFiles.size < totalFiles) {
+                    const proceed = confirm(`Only ${uploadedFiles.size} of ${totalFiles} files uploaded. Proceed anyway?`);
+                    if (!proceed) {
+                        galleryName = '';
+                        galleryDisplayName = '';
+                        galleryPassword = '';
+                        totalFiles = 0;
+                        return;
+                    }
+                }
+
                 $.post(webcreate68_ajax.ajax_url, {
                     action:'webcreate68_create_zip',
                     nonce:webcreate68_ajax.nonce,
@@ -66,10 +114,12 @@ jQuery(document).ready(function($){
                     password: galleryPassword
                 }, function(res){
                     if(res.success){
-                        alert('Upload complete!');
+                        alert(`Upload complete! ${uploadedFiles.size} files uploaded successfully.`);
                         galleryName = '';
                         galleryDisplayName = '';
                         galleryPassword = '';
+                        uploadedFiles.clear();
+                        totalFiles = 0;
                         myDropzone.removeAllFiles();
                         loadGalleries();
                     } else alert('Error creating ZIP: '+res.data);
@@ -77,7 +127,29 @@ jQuery(document).ready(function($){
             });
 
             this.on("error", function(file, error){
-                alert('Upload error: '+error);
+                console.error('Upload error for file:', file.name, error);
+                failedFiles.push(file);
+                
+                // Automatic retry up to 5 times
+                if (!file.retryCount) file.retryCount = 0;
+                if (file.retryCount < 5) {
+                    file.retryCount++;
+                    console.log(`Retrying ${file.name} (attempt ${file.retryCount}/5)`);
+                    setTimeout(() => {
+                        myDropzone.enqueueFile(file);
+                    }, 1000 * file.retryCount); // Exponential backoff
+                } else {
+                    alert(`Failed to upload ${file.name} after 5 attempts: ${error}`);
+                }
+            });
+
+            this.on("success", function(file, response){
+                if (response.success) {
+                    uploadedFiles.add(file.name);
+                    // Remove from failed list if it was there
+                    failedFiles = failedFiles.filter(f => f.name !== file.name);
+                    console.log('Successfully uploaded:', file.name, `(${uploadedFiles.size}/${totalFiles})`);
+                }
             });
         }
     });

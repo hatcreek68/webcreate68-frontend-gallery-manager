@@ -29,7 +29,7 @@ function wc68_galleries_base_url() {
 
 function wc68_galleries_cache_path() {
     $upload_dir = wp_upload_dir();
-    return $upload_dir['basedir'] . '/front-end-gallery-cache/';
+    return $upload_dir['basedir'] . '/front-end-gallery-public-thumbnails/';
 }
 
 /* -------------------------------

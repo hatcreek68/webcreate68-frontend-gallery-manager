@@ -312,6 +312,11 @@ function wc68_get_image(){
     $path = wc68_galleries_base_path() . $gallery . '/' . $file;
     if(!file_exists($path)) wp_die('Not found', 'Not Found', ['response' => 404]);
 
+    // Prevent Cloudflare and browser caching of protected images
+    header('Cache-Control: private, no-cache, no-store, must-revalidate');
+    header('Pragma: no-cache');
+    header('Expires: 0');
+    
     $mime = wp_check_filetype($path)['type'] ?? 'application/octet-stream';
     header('Content-Type: '.$mime);
     header('Content-Length: '.filesize($path));
