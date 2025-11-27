@@ -132,6 +132,38 @@ function webcreate68_upload_images() {
     wp_send_json_success(['file' => $filename]);
 }
 
+// Verify uploaded files against client list
+add_action('wp_ajax_webcreate68_verify_uploads', 'webcreate68_verify_uploads');
+function webcreate68_verify_uploads() {
+    check_ajax_referer('webcreate68_nonce','nonce');
+    if (!current_user_can('edit_pages')) wp_send_json_error('Access denied.');
+
+    $gallery_name = sanitize_file_name($_POST['gallery_name'] ?? '');
+    $client_files = $_POST['uploaded_files'] ?? [];
+    
+    if (!$gallery_name) wp_send_json_error('Missing gallery name.');
+    if (!is_array($client_files)) wp_send_json_error('Invalid file list.');
+
+    $gallery_path = wc68_galleries_base_path() . $gallery_name;
+    if (!is_dir($gallery_path)) wp_send_json_error('Gallery folder not found.');
+
+    // Get actual files on server
+    $server_files = glob($gallery_path . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE);
+    $server_basenames = array_map('basename', $server_files);
+    
+    // Find missing files
+    $missing_files = array_diff($client_files, $server_basenames);
+    $extra_files = array_diff($server_basenames, $client_files);
+    
+    wp_send_json_success([
+        'client_count' => count($client_files),
+        'server_count' => count($server_basenames),
+        'missing_files' => array_values($missing_files),
+        'extra_files' => array_values($extra_files),
+        'verified' => count($missing_files) === 0
+    ]);
+}
+
 // Create ZIP + shrink images
 add_action('wp_ajax_webcreate68_create_zip', 'webcreate68_create_zip');
 function webcreate68_create_zip() {

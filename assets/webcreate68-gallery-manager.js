@@ -8,6 +8,8 @@ jQuery(document).ready(function($){
     let uploadedFiles = new Set(); // Track successfully uploaded files
     let totalFiles = 0;
     let failedFiles = [];
+    let verificationAttempts = 0;
+    const MAX_VERIFICATION_ATTEMPTS = 15;
 
     const dz = new Dropzone("#upload-section", {
         url: webcreate68_ajax.ajax_url,
@@ -106,6 +108,84 @@ jQuery(document).ready(function($){
                     }
                 }
 
+                // SERVER-SIDE VERIFICATION: Check which files actually made it to server
+                console.log('Verifying uploads with server (attempt ' + (verificationAttempts + 1) + '/' + MAX_VERIFICATION_ATTEMPTS + ')...');
+                verificationAttempts++;
+                
+                $.post(webcreate68_ajax.ajax_url, {
+                    action: 'webcreate68_verify_uploads',
+                    nonce: webcreate68_ajax.nonce,
+                    gallery_name: galleryName,
+                    uploaded_files: Array.from(uploadedFiles)
+                }, function(verifyRes){
+                    if (!verifyRes.success) {
+                        alert('Upload verification failed: ' + verifyRes.data);
+                        resetUploadState();
+                        return;
+                    }
+
+                    const verification = verifyRes.data;
+                    console.log('Verification result:', verification);
+
+                    // Check if any files are missing on server
+                    if (verification.missing_files.length > 0) {
+                        console.warn(`Missing ${verification.missing_files.length} files:`, verification.missing_files);
+                        
+                        // Check if we've hit max retry attempts
+                        if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+                            alert(`Upload verification failed after ${MAX_VERIFICATION_ATTEMPTS} attempts!\n\n` +
+                                  `Client uploaded: ${verification.client_count} files\n` +
+                                  `Server received: ${verification.server_count} files\n` +
+                                  `Still missing: ${verification.missing_files.length} files\n` +
+                                  `Missing files: ${verification.missing_files.join(', ')}\n\n` +
+                                  `Please try uploading these files manually.`);
+                            resetUploadState();
+                            return;
+                        }
+                        
+                        // AUTO-RETRY: Find the original Dropzone file objects for missing files
+                        const filesToRetry = myDropzone.files.filter(file => 
+                            verification.missing_files.includes(file.name)
+                        );
+                        
+                        if (filesToRetry.length === 0) {
+                            alert(`Cannot find files to retry. Missing files: ${verification.missing_files.join(', ')}`);
+                            resetUploadState();
+                            return;
+                        }
+                        
+                        console.log(`Auto-retrying ${filesToRetry.length} missing files...`);
+                        alert(`Server is missing ${filesToRetry.length} files. Auto-retrying now...\n\n` +
+                              `Files: ${verification.missing_files.slice(0, 5).join(', ')}` +
+                              (verification.missing_files.length > 5 ? `\n...and ${verification.missing_files.length - 5} more` : ''));
+                        
+                        // Re-queue missing files
+                        filesToRetry.forEach(file => {
+                            file.status = Dropzone.QUEUED;
+                            myDropzone.enqueueFile(file);
+                        });
+                        
+                        return; // Exit, will verify again after retry completes
+                    }
+
+                    // All files verified - proceed with ZIP creation
+                    console.log('All files verified on server. Creating ZIP...');
+                    verificationAttempts = 0; // Reset for next upload
+                    createZipAndFinish();
+                });
+            });
+
+            function resetUploadState() {
+                galleryName = '';
+                galleryDisplayName = '';
+                galleryPassword = '';
+                totalFiles = 0;
+                uploadedFiles.clear();
+                failedFiles = [];
+                verificationAttempts = 0;
+            }
+
+            function createZipAndFinish() {
                 $.post(webcreate68_ajax.ajax_url, {
                     action:'webcreate68_create_zip',
                     nonce:webcreate68_ajax.nonce,
@@ -115,16 +195,12 @@ jQuery(document).ready(function($){
                 }, function(res){
                     if(res.success){
                         alert(`Upload complete! ${uploadedFiles.size} files uploaded successfully.`);
-                        galleryName = '';
-                        galleryDisplayName = '';
-                        galleryPassword = '';
-                        uploadedFiles.clear();
-                        totalFiles = 0;
+                        resetUploadState();
                         myDropzone.removeAllFiles();
                         loadGalleries();
                     } else alert('Error creating ZIP: '+res.data);
                 });
-            });
+            }
 
             this.on("error", function(file, error){
                 console.error('Upload error for file:', file.name, error);
