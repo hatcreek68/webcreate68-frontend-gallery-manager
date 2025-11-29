@@ -219,9 +219,12 @@ function webcreate68_create_zip() {
         
         $dst = imagecreatetruecolor($new_width, $new_height);
         imagecopyresampled($dst, $src, 0,0,0,0, $new_width, $new_height, $width, $height);
-        imagejpeg($dst, $file, 85);
+        imagejpeg($dst, $file, 100);
         imagedestroy($src);
         imagedestroy($dst);
+        
+        // Brief pause to prevent CPU from maxing out
+        usleep(200000); // 0.2 second delay between images
     }
 
     wp_send_json_success();
