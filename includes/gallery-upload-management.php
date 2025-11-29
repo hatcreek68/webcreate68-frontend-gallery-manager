@@ -224,7 +224,7 @@ function webcreate68_create_zip() {
         imagedestroy($dst);
         
         // Brief pause to prevent CPU from maxing out
-        usleep(200000); // 0.2 second delay between images
+        usleep(500000); // 0.5 second delay between images
     }
 
     wp_send_json_success();
