@@ -144,46 +144,48 @@ add_shortcode('client_galleries', function() {
                 thumb.style.cursor='pointer';
                 thumb.style.border = i===idx ? '2px solid #fff' : '1px solid #555';
                 thumb.dataset.index = i;
-                thumb.addEventListener('click',()=>{ idx=i; showGallery(); });
+                thumb.addEventListener('click',()=>{ 
+                    idx=i; 
+                    showGallery(); 
+                });
                 fragment.appendChild(thumb);
             });
-            
             thumbsContainer.appendChild(fragment);
 
-            // Lazy load thumbnails 1x1 as they scroll into view
+            // Strict display order lazy loading for thumbnails
             const thumbImgs = Array.from(thumbsContainer.querySelectorAll('img[data-src]'));
             if ('IntersectionObserver' in window) {
-                let loadedCount = 0;
-                const batchSize = 1;
+                let nextToLoad = 0;
                 const observer = new IntersectionObserver((entries, observer) => {
                     entries.forEach(entry => {
-                        if (entry.isIntersecting) {
+                        if (entry.isIntersecting && entry.target.dataset.index == nextToLoad) {
                             const img = entry.target;
                             if (img.dataset.src) {
                                 img.src = img.dataset.src;
                                 img.removeAttribute('data-src');
-                                loadedCount++;
                             }
                             observer.unobserve(img);
+                            nextToLoad++;
+                            // Observe the next thumbnail in order
+                            if (nextToLoad < thumbImgs.length) {
+                                observer.observe(thumbImgs[nextToLoad]);
+                            }
                         }
                     });
-                    // Observe next batch
-                    let nextToObserve = [];
-                    for (let i = loadedCount; i < loadedCount + batchSize && i < thumbImgs.length; i++) {
-                        const img = thumbImgs[i];
-                        if (img && img.dataset.src) nextToObserve.push(img);
-                    }
-                    nextToObserve.forEach(img => observer.observe(img));
                 }, { rootMargin: "100px" });
-                for (let i = 0; i < Math.min(batchSize, thumbImgs.length); i++) {
-                    observer.observe(thumbImgs[i]);
-                }
+                // Only observe the first thumbnail at start
+                if (thumbImgs.length > 0) observer.observe(thumbImgs[0]);
             } else {
+                // Fallback: load all at once
                 thumbImgs.forEach(img => {
                     img.src = img.dataset.src;
                     img.removeAttribute('data-src');
                 });
             }
+
+            // Disable prev/next buttons at ends
+            document.getElementById('gallery-prev').disabled = (idx === 0);
+            document.getElementById('gallery-next').disabled = (idx === imgs.length - 1);
 
             const activeThumb = thumbsContainer.querySelector(`img[data-index="${idx}"]`);
             if (activeThumb) {
@@ -223,8 +225,12 @@ add_shortcode('client_galleries', function() {
             document.getElementById('gallery-pass-input').value='';
         });
 
-        document.getElementById('gallery-prev').addEventListener('click',function(){ idx=(idx-1+imgs.length)%imgs.length; showGallery(); });
-        document.getElementById('gallery-next').addEventListener('click',function(){ idx=(idx+1)%imgs.length; showGallery(); });
+        document.getElementById('gallery-prev').addEventListener('click',function(){ 
+            if(idx > 0) { idx--; showGallery(); }
+        });
+        document.getElementById('gallery-next').addEventListener('click',function(){ 
+            if(idx < imgs.length - 1) { idx++; showGallery(); }
+        });
         
         document.getElementById('thumb-prev').addEventListener('click',()=>{ document.getElementById('gallery-thumbnails').scrollBy({left:-100,behavior:'smooth'}); });
         document.getElementById('thumb-next').addEventListener('click',()=>{ document.getElementById('gallery-thumbnails').scrollBy({left:100,behavior:'smooth'}); });
@@ -256,13 +262,17 @@ add_shortcode('client_galleries', function() {
             switch(e.key){
                 case 'ArrowLeft':
                     e.preventDefault();
-                    idx = (idx - 1 + imgs.length) % imgs.length;
-                    showGallery();
+                    if(idx > 0) {
+                        idx--;
+                        showGallery();
+                    }
                     break;
                 case 'ArrowRight':
                     e.preventDefault();
-                    idx = (idx + 1) % imgs.length;
-                    showGallery();
+                    if(idx < imgs.length - 1) {
+                        idx++;
+                        showGallery();
+                    }
                     break;
                 case 'Escape':
                     modal.style.display = 'none';
