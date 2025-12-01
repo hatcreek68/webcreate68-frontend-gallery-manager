@@ -152,36 +152,20 @@ add_shortcode('client_galleries', function() {
             });
             thumbsContainer.appendChild(fragment);
 
-            // Strict display order lazy loading for thumbnails
+            // Load all thumbnails in order, not just visible ones
             const thumbImgs = Array.from(thumbsContainer.querySelectorAll('img[data-src]'));
-            if ('IntersectionObserver' in window) {
-                let nextToLoad = 0;
-                const observer = new IntersectionObserver((entries, observer) => {
-                    entries.forEach(entry => {
-                        if (entry.isIntersecting && entry.target.dataset.index == nextToLoad) {
-                            const img = entry.target;
-                            if (img.dataset.src) {
-                                img.src = img.dataset.src;
-                                img.removeAttribute('data-src');
-                            }
-                            observer.unobserve(img);
-                            nextToLoad++;
-                            // Observe the next thumbnail in order
-                            if (nextToLoad < thumbImgs.length) {
-                                observer.observe(thumbImgs[nextToLoad]);
-                            }
-                        }
-                    });
-                }, { rootMargin: "100px" });
-                // Only observe the first thumbnail at start
-                if (thumbImgs.length > 0) observer.observe(thumbImgs[0]);
-            } else {
-                // Fallback: load all at once
-                thumbImgs.forEach(img => {
+            let thumbIndex = 0;
+            function loadNextThumb() {
+                if (thumbIndex >= thumbImgs.length) return;
+                const img = thumbImgs[thumbIndex];
+                if (img && img.dataset.src) {
                     img.src = img.dataset.src;
                     img.removeAttribute('data-src');
-                });
+                }
+                thumbIndex++;
+                setTimeout(loadNextThumb, 80); // Stagger requests for smoother UX
             }
+            loadNextThumb();
 
             // Disable prev/next buttons at ends
             document.getElementById('gallery-prev').disabled = (idx === 0);
