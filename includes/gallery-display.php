@@ -96,7 +96,6 @@ add_shortcode('client_galleries', function() {
         }
     });
     </script>
-
     <div id="gallery-modal" style="display:none;position:fixed;top:0;left:0;width:100%;height:100%;background:rgba(0,0,0,0.85);justify-content:center;align-items:center;z-index:9999;overflow:auto;">
         <div id="gallery-modal-content" style="position:relative;max-width:90%;margin:auto;">
             <button id="gallery-close" style="position:absolute;top:10px;right:10px;font-size:24px;color:#fff;background:none;border:none;cursor:pointer;">&times;</button>
@@ -128,8 +127,10 @@ add_shortcode('client_galleries', function() {
         let currentImg = document.getElementById('gallery-current-image');
         let imgs = [], idx = 0;
         let currentGallery = '';
+        const placeholderSrc = '<?php echo $placeholder_src; ?>';
 
         function showGallery(){
+            // Only load the current image
             currentImg.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(imgs[idx]);
             let thumbsContainer = document.getElementById('gallery-thumbnails');
             thumbsContainer.innerHTML = '';
@@ -137,7 +138,8 @@ add_shortcode('client_galleries', function() {
             const fragment = document.createDocumentFragment();
             imgs.forEach((file,i)=>{
                 let thumb = document.createElement('img');
-                thumb.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(file);
+                thumb.src = placeholderSrc;
+                thumb.dataset.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(file);
                 thumb.style.width='80px'; thumb.style.height='80px'; thumb.style.objectFit='cover';
                 thumb.style.cursor='pointer';
                 thumb.style.border = i===idx ? '2px solid #fff' : '1px solid #555';
@@ -147,6 +149,41 @@ add_shortcode('client_galleries', function() {
             });
             
             thumbsContainer.appendChild(fragment);
+
+            // Lazy load thumbnails 1x1 as they scroll into view
+            const thumbImgs = Array.from(thumbsContainer.querySelectorAll('img[data-src]'));
+            if ('IntersectionObserver' in window) {
+                let loadedCount = 0;
+                const batchSize = 1;
+                const observer = new IntersectionObserver((entries, observer) => {
+                    entries.forEach(entry => {
+                        if (entry.isIntersecting) {
+                            const img = entry.target;
+                            if (img.dataset.src) {
+                                img.src = img.dataset.src;
+                                img.removeAttribute('data-src');
+                                loadedCount++;
+                            }
+                            observer.unobserve(img);
+                        }
+                    });
+                    // Observe next batch
+                    let nextToObserve = [];
+                    for (let i = loadedCount; i < loadedCount + batchSize && i < thumbImgs.length; i++) {
+                        const img = thumbImgs[i];
+                        if (img && img.dataset.src) nextToObserve.push(img);
+                    }
+                    nextToObserve.forEach(img => observer.observe(img));
+                }, { rootMargin: "100px" });
+                for (let i = 0; i < Math.min(batchSize, thumbImgs.length); i++) {
+                    observer.observe(thumbImgs[i]);
+                }
+            } else {
+                thumbImgs.forEach(img => {
+                    img.src = img.dataset.src;
+                    img.removeAttribute('data-src');
+                });
+            }
 
             const activeThumb = thumbsContainer.querySelector(`img[data-index="${idx}"]`);
             if (activeThumb) {
