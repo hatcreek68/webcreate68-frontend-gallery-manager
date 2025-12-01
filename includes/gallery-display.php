@@ -54,25 +54,44 @@ add_shortcode('client_galleries', function() {
     var wc68_ajax_url = '<?php echo admin_url("admin-ajax.php"); ?>';
     var wc68_nonce = '<?php echo wp_create_nonce("webcreate68_nonce"); ?>';
 
-    // Intersection Observer for lazy loading
+    // Improved lazy loading: load thumbnails in display order, only when visible
     document.addEventListener('DOMContentLoaded', function() {
+        const galleryThumbs = Array.from(document.querySelectorAll('.client-galleries img[data-src]'));
         if ('IntersectionObserver' in window) {
-            const galleryThumbs = document.querySelectorAll('.client-galleries img[data-src]');
+            let loading = false;
+            let loadedCount = 0;
+            const maxConcurrent = 2; // Only load 2 at a time for smoother UX
+
             const observer = new IntersectionObserver((entries, observer) => {
                 entries.forEach(entry => {
-                    if (entry.isIntersecting) {
+                    if (entry.isIntersecting && !loading) {
+                        loading = true;
                         const img = entry.target;
                         if (img.dataset.src) {
                             img.src = img.dataset.src;
                             img.removeAttribute('data-src');
+                            loadedCount++;
                         }
                         observer.unobserve(img);
+                        loading = false;
+                        // After loading, observe the next in display order
+                        if (loadedCount < galleryThumbs.length) {
+                            const nextImg = galleryThumbs[loadedCount];
+                            if (nextImg && nextImg.dataset.src) {
+                                observer.observe(nextImg);
+                            }
+                        }
                     }
                 });
-            });
-            galleryThumbs.forEach(img => observer.observe(img));
+            }, { rootMargin: "100px" });
+
+            // Start by observing the first N images in display order
+            for (let i = 0; i < Math.min(maxConcurrent, galleryThumbs.length); i++) {
+                observer.observe(galleryThumbs[i]);
+            }
         } else {
-            document.querySelectorAll('.client-galleries img[data-src]').forEach(img => {
+            // Fallback: load all at once
+            galleryThumbs.forEach(img => {
                 img.src = img.dataset.src;
                 img.removeAttribute('data-src');
             });
