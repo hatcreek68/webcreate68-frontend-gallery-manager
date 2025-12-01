@@ -235,6 +235,25 @@ function webcreate68_create_zip() {
         usleep(500000); // 0.5 second delay between images
     }
 
+    // Generate premade thumbnails for all images in album
+    $thumbs_dir = $gallery_path . '/thumbs/';
+    wp_mkdir_p($thumbs_dir);
+    foreach ($uploaded_files as $file) {
+        $basename = basename($file);
+        $thumb_path = $thumbs_dir . $basename . '_thumb_200.jpg';
+        if (!file_exists($thumb_path)) {
+            if (!function_exists('wp_get_image_editor')) {
+                require_once(ABSPATH . 'wp-admin/includes/image.php');
+            }
+            $editor = wp_get_image_editor($file);
+            if (!is_wp_error($editor)) {
+                $editor->resize(200, 200, true);
+                $editor->set_quality(80);
+                $editor->save($thumb_path);
+            }
+        }
+    }
+
     wp_send_json_success();
 }
 

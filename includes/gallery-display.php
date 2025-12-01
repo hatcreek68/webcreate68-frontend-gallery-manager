@@ -142,7 +142,8 @@ add_shortcode('client_galleries', function() {
                 imgs.forEach((file,i)=>{
                     let thumb = document.createElement('img');
                     thumb.src = placeholderSrc;
-                    thumb.dataset.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(file);
+                    // Use premade thumbnail from album/thumbs/
+                    thumb.dataset.src = wc68_ajax_url + '?action=wc68_get_album_thumb&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(file);
                     thumb.style.width='80px'; thumb.style.height='80px'; thumb.style.objectFit='cover';
                     thumb.style.cursor='pointer';
                     thumb.style.border = i===idx ? '2px solid #fff' : '1px solid #555';
@@ -155,20 +156,28 @@ add_shortcode('client_galleries', function() {
                 });
                 thumbsContainer.appendChild(fragment);
 
-                // Load all thumbnails in order, not just visible ones
+                // Lazy load thumbnails as they become visible (IntersectionObserver)
                 const thumbImgs = Array.from(thumbsContainer.querySelectorAll('img[data-src]'));
-                let thumbIndex = 0;
-                function loadNextThumb() {
-                    if (thumbIndex >= thumbImgs.length) return;
-                    const img = thumbImgs[thumbIndex];
-                    if (img && img.dataset.src) {
+                if ('IntersectionObserver' in window) {
+                    const observer = new IntersectionObserver((entries, observer) => {
+                        entries.forEach(entry => {
+                            if (entry.isIntersecting) {
+                                const img = entry.target;
+                                if (img.dataset.src) {
+                                    img.src = img.dataset.src;
+                                    img.removeAttribute('data-src');
+                                }
+                                observer.unobserve(img);
+                            }
+                        });
+                    }, { rootMargin: "100px" });
+                    thumbImgs.forEach(img => observer.observe(img));
+                } else {
+                    thumbImgs.forEach(img => {
                         img.src = img.dataset.src;
                         img.removeAttribute('data-src');
-                    }
-                    thumbIndex++;
-                    setTimeout(loadNextThumb, 80);
+                    });
                 }
-                loadNextThumb();
                 thumbsInitialized = true;
             }
 
@@ -443,5 +452,46 @@ add_action('wp_head', function(){
     #gallery-thumbnails::-webkit-scrollbar-thumb {background: #444;border-radius: 4px;}
     #gallery-thumbnails::-webkit-scrollbar-track {background: #222;}
     #gallery-close {position: absolute;top: 10px;right: 30px;font-size: 28px;color: #fff;background: rgba(0,0,0,0.4);border: none;cursor: pointer;z-index: 1001;padding: 4px 8px;border-radius: 4px;}
-    </style>';
+}); </style>';
 });
+
+/* -------------------------------
+    Serve album thumbnails (Cached or On-Demand)
+---------------------------------*/
+add_action('wp_ajax_wc68_get_album_thumb','wc68_get_album_thumb');
+add_action('wp_ajax_nopriv_wc68_get_album_thumb','wc68_get_album_thumb');
+function wc68_get_album_thumb(){
+    $gallery = sanitize_text_field($_GET['gallery'] ?? '');
+    $gallery = basename($gallery);
+    $file = sanitize_text_field($_GET['file'] ?? '');
+    $file = basename($file);
+
+    $thumbs_dir = wc68_galleries_base_path() . $gallery . '/thumbs/';
+    $thumb_path = $thumbs_dir . $file . '_thumb_200.jpg';
+    $original_path = wc68_galleries_base_path() . $gallery . '/' . $file;
+
+    if (!file_exists($thumb_path)) {
+        if (!file_exists($thumbs_dir)) {
+            wp_mkdir_p($thumbs_dir);
+        }
+        if (!file_exists($original_path)) wp_die('Original file not found', 'Not Found', ['response' => 404]);
+        if (!function_exists('wp_get_image_editor')) {
+            require_once(ABSPATH . 'wp-admin/includes/image.php');
+        }
+        $editor = wp_get_image_editor($original_path);
+        if (!is_wp_error($editor)) {
+            $editor->resize(200, 200, true);
+            $editor->set_quality(80);
+            $editor->save($thumb_path);
+        } else {
+            // fallback: serve original if cannot generate thumb
+            $thumb_path = $original_path;
+        }
+    }
+
+    $mime = wp_check_filetype($thumb_path)['type'] ?? 'image/jpeg';
+    header('Content-Type: '.$mime);
+    header('Content-Length: '.filesize($thumb_path));
+    readfile($thumb_path);
+    exit;
+}
