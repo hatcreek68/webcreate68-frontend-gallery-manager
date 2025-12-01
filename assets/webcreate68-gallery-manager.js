@@ -197,7 +197,10 @@ jQuery(document).ready(function($){
                         alert(`Upload complete! ${uploadedFiles.size} files uploaded successfully.`);
                         resetUploadState();
                         myDropzone.removeAllFiles();
-                        loadGalleries();
+                        // Refresh page to show new album
+                        location.reload(); // <-- Added: refresh page after upload
+                        // Alternatively, you can just call loadGalleries(); if you prefer not to reload
+                        // loadGalleries();
                     } else alert('Error creating ZIP: '+res.data);
                 });
             }
@@ -239,16 +242,27 @@ jQuery(document).ready(function($){
                     $('#gallery-list').html('<p>No galleries found. Upload your first gallery above!</p>');
                     return;
                 }
-                let html = '<div class="gallery-header"><div>Name</div><div>Password</div><div>Actions</div></div>';
+                let html = '<div class="gallery-header"><div>Name</div><div>Password</div><div>Actions</div><div>Info</div></div>';
                 res.data.forEach(g=>{
                     // XSS FIX: escape HTML in display_name and folder
                     const safeName = $('<div>').text(g.display_name).html();
                     const safeFolder = $('<div>').text(g.folder).html();
+                    // Format ZIP size
+                    let zipSizeStr = g.zip_size
+                        ? (g.zip_size > 1024*1024
+                            ? (g.zip_size/1024/1024).toFixed(2)+' MB'
+                            : (g.zip_size/1024).toFixed(1)+' KB')
+                        : null;
+                    let infoStr = `${g.jpg_count} JPG${g.jpg_count!==1?'s':''}; `;
+                    infoStr += zipSizeStr ? `.zip file size: ${zipSizeStr}` : 'No ZIP';
                     html += `<div class="gallery-item">
                         <input type="text" class="edit-display" data-folder="${safeFolder}" value="${safeName}">
                         <input type="password" class="edit-password" data-folder="${safeFolder}" placeholder="Password">
                         <button class="webcreate68-button save-meta" data-folder="${safeFolder}">Save</button>
                         <button class="webcreate68-button delete-gallery" data-folder="${safeFolder}">Delete</button>
+                        <span style="margin-left:12px; font-size:13px; color:#555;">
+                            ${infoStr}
+                        </span>
                     </div>`;
                 });
                 $('#gallery-list').html(html);

@@ -245,33 +245,31 @@ function webcreate68_get_list() {
     if (!current_user_can('edit_pages')) wp_send_json_error('Access denied.');
 
     $gallery_dir = wc68_galleries_base_path();
-    
-    // Debug: log the path being checked
-    error_log('Gallery dir path: ' . $gallery_dir);
-    
     wp_mkdir_p($gallery_dir);
 
     $dirs = array_filter(glob($gallery_dir . '*'), 'is_dir');
-    
-    // Debug: log what was found
-    error_log('Found ' . count($dirs) . ' directories');
-    error_log('Dirs: ' . print_r($dirs, true));
-    
     $list = [];
     foreach ($dirs as $dir) {
         $name = basename($dir);
         $meta_file = $dir . '/.meta.json';
         $meta = file_exists($meta_file) ? json_decode(file_get_contents($meta_file), true) : ['display_name'=>$name,'password_hash'=>''];
+        
+        // Count JPG files
+        $jpgs = glob($dir . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE);
+        $jpg_count = $jpgs ? count($jpgs) : 0;
+
+        // Get ZIP size
+        $zip_file = $dir . '/' . $name . '.zip';
+        $zip_size = (file_exists($zip_file)) ? filesize($zip_file) : 0;
+
         $list[] = [
             'folder' => $name,
             'display_name' => $meta['display_name'] ?? $name,
-            'has_password' => !empty($meta['password_hash'])
+            'has_password' => !empty($meta['password_hash']),
+            'jpg_count' => $jpg_count,
+            'zip_size' => $zip_size
         ];
     }
-    
-    // Debug: log the result
-    error_log('Returning list with ' . count($list) . ' items');
-    
     wp_send_json_success($list);
 }
 
