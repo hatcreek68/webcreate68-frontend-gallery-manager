@@ -217,6 +217,17 @@ add_shortcode('client_galleries', function() {
                 modal.style.display='flex';
                 passForm.style.display='block';
                 content.style.display='none';
+
+                // Clear previous modal image src to avoid showing cached image
+                currentImg.src = placeholderSrc;
+
+                // Clear all thumbnail images src in modal
+                let thumbsContainer = document.getElementById('gallery-thumbnails');
+                if (thumbsContainer) {
+                    Array.from(thumbsContainer.querySelectorAll('img')).forEach(img => {
+                        img.src = placeholderSrc;
+                    });
+                }
             });
         });
 
