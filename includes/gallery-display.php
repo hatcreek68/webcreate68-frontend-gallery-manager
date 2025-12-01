@@ -133,53 +133,71 @@ add_shortcode('client_galleries', function() {
             // Only load the current image
             currentImg.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(imgs[idx]);
             let thumbsContainer = document.getElementById('gallery-thumbnails');
-            thumbsContainer.innerHTML = '';
-            
-            const fragment = document.createDocumentFragment();
-            imgs.forEach((file,i)=>{
-                let thumb = document.createElement('img');
-                thumb.src = placeholderSrc;
-                thumb.dataset.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(file);
-                thumb.style.width='80px'; thumb.style.height='80px'; thumb.style.objectFit='cover';
-                thumb.style.cursor='pointer';
-                thumb.style.border = i===idx ? '2px solid #fff' : '1px solid #555';
-                thumb.dataset.index = i;
-                thumb.addEventListener('click',()=>{ 
-                    idx=i; 
-                    showGallery(); 
-                });
-                fragment.appendChild(thumb);
-            });
-            thumbsContainer.appendChild(fragment);
+            let thumbsInitialized = false;
+            let lastGallery = '';
 
-            // Load all thumbnails in order, not just visible ones
-            const thumbImgs = Array.from(thumbsContainer.querySelectorAll('img[data-src]'));
-            let thumbIndex = 0;
-            function loadNextThumb() {
-                if (thumbIndex >= thumbImgs.length) return;
-                const img = thumbImgs[thumbIndex];
-                if (img && img.dataset.src) {
-                    img.src = img.dataset.src;
-                    img.removeAttribute('data-src');
+            function renderThumbnails() {
+                thumbsContainer.innerHTML = '';
+                const fragment = document.createDocumentFragment();
+                imgs.forEach((file,i)=>{
+                    let thumb = document.createElement('img');
+                    thumb.src = placeholderSrc;
+                    thumb.dataset.src = wc68_ajax_url + '?action=wc68_get_image&gallery=' + encodeURIComponent(currentGallery) + '&file=' + encodeURIComponent(file);
+                    thumb.style.width='80px'; thumb.style.height='80px'; thumb.style.objectFit='cover';
+                    thumb.style.cursor='pointer';
+                    thumb.style.border = i===idx ? '2px solid #fff' : '1px solid #555';
+                    thumb.dataset.index = i;
+                    thumb.addEventListener('click',()=>{ 
+                        idx=i; 
+                        showGallery(); 
+                    });
+                    fragment.appendChild(thumb);
+                });
+                thumbsContainer.appendChild(fragment);
+
+                // Load all thumbnails in order, not just visible ones
+                const thumbImgs = Array.from(thumbsContainer.querySelectorAll('img[data-src]'));
+                let thumbIndex = 0;
+                function loadNextThumb() {
+                    if (thumbIndex >= thumbImgs.length) return;
+                    const img = thumbImgs[thumbIndex];
+                    if (img && img.dataset.src) {
+                        img.src = img.dataset.src;
+                        img.removeAttribute('data-src');
+                    }
+                    thumbIndex++;
+                    setTimeout(loadNextThumb, 80);
                 }
-                thumbIndex++;
-                setTimeout(loadNextThumb, 80); // Stagger requests for smoother UX
+                loadNextThumb();
+                thumbsInitialized = true;
             }
-            loadNextThumb();
+
+            function updateActiveThumb() {
+                const thumbImgs = thumbsContainer.querySelectorAll('img');
+                thumbImgs.forEach((img, i) => {
+                    img.style.border = (i === idx) ? '2px solid #fff' : '1px solid #555';
+                });
+                const activeThumb = thumbsContainer.querySelector(`img[data-index="${idx}"]`);
+                if (activeThumb) {
+                    setTimeout(() => {
+                        const containerWidth = thumbsContainer.offsetWidth;
+                        const thumbWidth = activeThumb.offsetWidth;
+                        const scrollLeft = activeThumb.offsetLeft - (containerWidth / 2) + (thumbWidth / 2);
+                        thumbsContainer.scrollTo({ left: scrollLeft, behavior: 'smooth' });
+                    }, 1);
+                }
+            }
+
+            // Only re-render thumbnails if gallery changed or not initialized
+            if (!thumbsInitialized || lastGallery !== currentGallery) {
+                renderThumbnails();
+                lastGallery = currentGallery;
+            }
+            updateActiveThumb();
 
             // Disable prev/next buttons at ends
             document.getElementById('gallery-prev').disabled = (idx === 0);
             document.getElementById('gallery-next').disabled = (idx === imgs.length - 1);
-
-            const activeThumb = thumbsContainer.querySelector(`img[data-index="${idx}"]`);
-            if (activeThumb) {
-                setTimeout(() => {
-                    const containerWidth = thumbsContainer.offsetWidth;
-                    const thumbWidth = activeThumb.offsetWidth;
-                    const scrollLeft = activeThumb.offsetLeft - (containerWidth / 2) + (thumbWidth / 2);
-                    thumbsContainer.scrollTo({ left: scrollLeft, behavior: 'smooth' });
-                }, 1);
-            }
         }
 
         document.querySelectorAll('.gallery-thumb').forEach(thumb=>{
