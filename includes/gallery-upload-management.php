@@ -94,7 +94,7 @@ function webcreate68_upload_images() {
     if (!current_user_can('edit_pages')) wp_send_json_error('Access denied.');
 
     $gallery_name = sanitize_file_name($_POST['gallery_name'] ?? '');
-    $display_name = sanitize_text_field($_POST['display_name'] ?? $_POST['gallery_name'] ?? '');
+    $display_name = wp_unslash(trim($_POST['display_name'] ?? $_POST['gallery_name'] ?? ''));
     if (!$gallery_name) wp_send_json_error('Missing gallery name.');
 
     if (empty($_FILES['file']) || !is_uploaded_file($_FILES['file']['tmp_name'])) {
@@ -150,17 +150,25 @@ function webcreate68_verify_uploads() {
     // Get actual files on server
     $server_files = glob($gallery_path . '/*.{jpg,jpeg,JPG,JPEG}', GLOB_BRACE);
     $server_basenames = array_map('basename', $server_files);
-    
+
+    // Normalize filenames to lowercase for comparison
+    $client_files_lc = array_map('strtolower', $client_files);
+    $server_basenames_lc = array_map('strtolower', $server_basenames);
+
     // Find missing files
-    $missing_files = array_diff($client_files, $server_basenames);
-    $extra_files = array_diff($server_basenames, $client_files);
-    
+    $missing_files_lc = array_diff($client_files_lc, $server_basenames_lc);
+    $extra_files_lc = array_diff($server_basenames_lc, $client_files_lc);
+
+    // Map back to original client/server filenames for reporting
+    $missing_files = array_values(array_intersect($client_files, $missing_files_lc));
+    $extra_files = array_values(array_intersect($server_basenames, $extra_files_lc));
+
     wp_send_json_success([
         'client_count' => count($client_files),
         'server_count' => count($server_basenames),
-        'missing_files' => array_values($missing_files),
-        'extra_files' => array_values($extra_files),
-        'verified' => count($missing_files) === 0
+        'missing_files' => $missing_files,
+        'extra_files' => $extra_files,
+        'verified' => count($missing_files_lc) === 0
     ]);
 }
 
@@ -174,7 +182,7 @@ function webcreate68_create_zip() {
     if (!current_user_can('edit_pages')) wp_send_json_error('Access denied.');
 
     $gallery_name = sanitize_file_name($_POST['gallery_name'] ?? '');
-    $display_name = sanitize_text_field($_POST['display_name'] ?? $_POST['gallery_name'] ?? '');
+    $display_name = wp_unslash(trim($_POST['display_name'] ?? $_POST['gallery_name'] ?? ''));
     if (!$gallery_name) wp_send_json_error('Missing gallery name.');
 
     $gallery_path = wc68_galleries_base_path() . $gallery_name;
@@ -274,7 +282,7 @@ function webcreate68_save_meta() {
     if (!current_user_can('edit_pages')) wp_send_json_error('Access denied.');
 
     $folder = sanitize_file_name($_POST['folder'] ?? '');
-    $display_name = sanitize_text_field($_POST['display_name'] ?? '');
+    $display_name = wp_unslash(trim($_POST['display_name'] ?? ''));
     $password = sanitize_text_field($_POST['password'] ?? '');
     if (!$folder) wp_send_json_error('Folder missing.');
 
