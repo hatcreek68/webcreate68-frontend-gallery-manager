@@ -54,18 +54,16 @@ add_shortcode('client_galleries', function() {
     var wc68_ajax_url = '<?php echo admin_url("admin-ajax.php"); ?>';
     var wc68_nonce = '<?php echo wp_create_nonce("webcreate68_nonce"); ?>';
 
-    // Improved lazy loading: load thumbnails in display order, only when visible
+    // Lazy load: load 1 image at a time by display order, until all loaded
     document.addEventListener('DOMContentLoaded', function() {
         const galleryThumbs = Array.from(document.querySelectorAll('.client-galleries img[data-src]'));
         if ('IntersectionObserver' in window) {
-            let loading = false;
             let loadedCount = 0;
-            const maxConcurrent = 2; // Only load 2 at a time for smoother UX
+            const batchSize = 1;
 
             const observer = new IntersectionObserver((entries, observer) => {
                 entries.forEach(entry => {
-                    if (entry.isIntersecting && !loading) {
-                        loading = true;
+                    if (entry.isIntersecting) {
                         const img = entry.target;
                         if (img.dataset.src) {
                             img.src = img.dataset.src;
@@ -73,20 +71,20 @@ add_shortcode('client_galleries', function() {
                             loadedCount++;
                         }
                         observer.unobserve(img);
-                        loading = false;
-                        // After loading, observe the next in display order
-                        if (loadedCount < galleryThumbs.length) {
-                            const nextImg = galleryThumbs[loadedCount];
-                            if (nextImg && nextImg.dataset.src) {
-                                observer.observe(nextImg);
-                            }
-                        }
                     }
                 });
+
+                // After each batch, observe the next batch in display order
+                let nextToObserve = [];
+                for (let i = loadedCount; i < loadedCount + batchSize && i < galleryThumbs.length; i++) {
+                    const img = galleryThumbs[i];
+                    if (img && img.dataset.src) nextToObserve.push(img);
+                }
+                nextToObserve.forEach(img => observer.observe(img));
             }, { rootMargin: "100px" });
 
-            // Start by observing the first N images in display order
-            for (let i = 0; i < Math.min(maxConcurrent, galleryThumbs.length); i++) {
+            // Start by observing the first batch
+            for (let i = 0; i < Math.min(batchSize, galleryThumbs.length); i++) {
                 observer.observe(galleryThumbs[i]);
             }
         } else {
